@@ -47,6 +47,18 @@ class AnalysisInput(BaseModel):
 class ReviewInput(BaseModel):
     noise_note:str=Field(min_length=1,max_length=240)
     decision:str=Field(min_length=4,max_length=120)
+class TrialCandidate(BaseModel):
+    eps:float=Field(ge=.3,le=3)
+    min_samples:int=Field(ge=3,le=12)
+class TrialInput(BaseModel):
+    transect_id:int
+    candidates:list[TrialCandidate]=Field(min_length=1,max_length=12)
+    @model_validator(mode='after')
+    def unique(self):
+        if len({(round(c.eps,3),c.min_samples) for c in self.candidates})!=len(self.candidates):raise ValueError('候选参数组合不能重复')
+        return self
+class TrialAdopt(BaseModel):
+    run_id:int
 class CalibrationInput(BaseModel):
     net_id:int
     measured_mm:float=Field(gt=0,le=100)

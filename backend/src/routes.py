@@ -15,7 +15,7 @@ def login(data:Login,db=Depends(session)):
     return {'token':issue(row),'username':row.username,'role':row.role}
 @router.get('/workspace')
 def workspace(db=Depends(session),user=Depends(current)):
-    return {m.__tablename__:[dump(r) for r in db.scalars(select(m).order_by(m.id))] for m in [Boat,Cruise,NavigationClosure,Transect,Echo,SchoolAnalysis,SchoolReview,Net,NetCalibration,BioSample,MissingInterval,Resurvey,SurveyRelease]}
+    return {m.__tablename__:[dump(r) for r in db.scalars(select(m).order_by(m.id))] for m in [Boat,Cruise,NavigationClosure,Transect,Echo,SchoolAnalysis,SchoolReview,SchoolTrial,SchoolTrialRun,Net,NetCalibration,BioSample,MissingInterval,Resurvey,SurveyRelease]}
 @router.post('/cruises')
 def create(data:CruiseInput,db=Depends(session),user=Depends(editor)):return nav.create(db,data,user)
 @router.patch('/cruises/{id}/schedule')
@@ -36,6 +36,12 @@ def simulate(id:int,db=Depends(session),user=Depends(editor)):return transect.si
 def analyze(data:AnalysisInput,db=Depends(session),user=Depends(editor)):return school.enqueue(db,data,user)
 @router.post('/schools/{id}/review')
 def review(id:int,data:ReviewInput,db=Depends(session),user=Depends(supervisor)):return school.review(db,id,data,user)
+@router.post('/school-trials')
+def start_trial(data:TrialInput,db=Depends(session),user=Depends(editor)):return school.start_trial(db,data,user)
+@router.post('/school-trials/{id}/resume')
+def resume_trial(id:int,db=Depends(session),user=Depends(editor)):return school.resume_trial(db,id,user)
+@router.post('/school-trials/{id}/adopt')
+def adopt_trial(id:int,data:TrialAdopt,db=Depends(session),user=Depends(supervisor)):return school.adopt(db,id,data,user)
 @router.post('/calibrations')
 def calibration(data:CalibrationInput,db=Depends(session),user=Depends(supervisor)):return biology.calibrate(db,data,user)
 @router.post('/samples')

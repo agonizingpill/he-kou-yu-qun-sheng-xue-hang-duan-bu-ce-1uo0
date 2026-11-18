@@ -11,8 +11,8 @@ def get(db,model,id,lock=False):
 def reject(condition,message):
     if condition:raise HTTPException(409,message)
 def dump(row):return {c.name:getattr(row,c.name) for c in row.__table__.columns}
-def finish(db,user,action,row):
-    db.add(Audit(actor=user.username,action=action,detail=str(row.id)));db.commit();return dump(row)
+def finish(db,user,action,row,detail=None):
+    db.add(Audit(actor=user.username,action=action,detail=(detail or str(row.id))[:300]));db.commit();return dump(row)
 def cruise_lock(db,id,sailing=False):
     c=get(db,Cruise,id,True);reject(c.status=='frozen','调查图层已封存，业务记录不可修改')
     if sailing:reject(c.status!='sailing','该操作需航次处于调查中')

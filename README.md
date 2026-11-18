@@ -8,7 +8,7 @@
 
 1. 航次与禁航：具名调查船、带时区航窗、潮汐禁航。开航重新检查冲突；同船同期只能一航次；未开航可改时间恢复。
 2. 声学航段与探头：地理端点、米制长度、38/120/200kHz探头、增益；回波点含沿程距离、经纬度、水深和强度，范围与偏航100米约束。
-3. 群落与噪点：worker实际DBSCAN，复核针对当前回波版本与最新识别ID；有噪点必须解释。同版本重跑识别后，旧复核不会继续放行。
+3. 群落与噪点：worker实际DBSCAN，复核针对当前回波版本与最新识别ID；有噪点必须解释。同版本重跑识别后，旧复核不会继续放行。候选参数试算：主管可先试多组eps/min_samples，用同一版回波和同一正式结果逐点比对，标出在鱼群与噪点之间改变的点；试算不改变正式识别，采纳后生成新的正式识别（仍需复核），失败组合可续跑且不重算已完成组合；回波补录或正式结果更换后必须重新试算，两人同时采纳只认先成功的一份。
 4. 网具与生物样：标称网目、实测尺度、证书和有效期；误差≤10%合格，最新校验须覆盖上海时区完整返航日期。样本引用已复核分析和实际校验记录，不可关联噪点。
 5. 缺测补航：原航段沿程区间不得重叠，主管按区间自动推导补航地理端点；补航回波、噪点复核和生物样齐全后才能接续。空补航可撤销重排。
 6. 图层封存：缺测全部覆盖后结束现场；逐航段最新分析、噪点复核和对应样本齐全后冻结。JSON快照包含回波、聚类、复核、样本、网具与校验，附原始canonical_json及其UTF-8字节SHA256；航次冻结后拒绝业务变更。
@@ -37,7 +37,7 @@ JWT有效8小时，角色按服务端当前账户核验。演示凭据仅用于�
 1. 08:30 打开CY031，潮研一号、E1/E2航段，原11:00–13:00航窗与11月18日12:00–14:00潮汐禁航重叠，开航拒绝。
 2. 09:00 改为14:15–17:00，主管核准；查看E1已登记300–600米探头断续缺测。
 3. 14:20 在“声学航段”选择E1，导入标注为合成来源的80点探头数据；E2同样导入。实际现场可提交JSON回波数组。
-4. 14:40 “群落复核”按eps1.2/min_samples4排队，刷新查看真实DBSCAN结果与参数敏感性，主管解释孤立回波的底质干扰并签署。
+4. 14:40 “群落复核”按eps1.2/min_samples4排队，刷新查看真实DBSCAN结果与参数敏感性，主管解释孤立回波的底质干扰并签署。主管再在“候选参数试算”提交eps0.9/1.5对照同版回波，查看鱼群↔噪点改变点；试算完成前正式结果继续用于复核，选定后采纳并重新复核。
 5. 15:00 N31初校11.6mm相对10mm超差，生物样关联被拒绝；主管复校10.2mm、证书`N31-复校-20261118`、有效期2026-12-31，调查员关联群落0的12尾模拟鲻鱼、平均125mm。
 6. 15:20 主管为300米缺测生成E1-S1补航，尚无数据时确认接续被拒绝；到航段页导入补航回波，复核群落并关联生物样后，再确认覆盖。
 7. 16:30 主航段和补航齐全后主管结束现场调查。若重跑最新识别，需新复核与新样本关联，旧复核不能继续用。
@@ -53,13 +53,17 @@ JWT有效8小时，角色按服务端当前账户核验。演示凭据仅用于�
 
 worker从Redis队列领取任务，保存assignments、metrics、失败原因，并写共享artifacts卷。回波版本变化使在途旧版本任务失败或无法复核；队列发送失败标failed返回503，可恢复后重新提交。页面展示真实点绘成的航迹和深度剖面，不用假图。
 
+### 候选参数试算
+
+`POST /school-trials` 以当前回波版本和当时的正式识别为对照，提交1–12组eps/min_samples（同组去重）；`POST /school-trials/{id}/resume` 续跑失败组合；`POST /school-trials/{id}/adopt` 由主管选定候选并生成新的正式识别。试算期间正式识别、复核、生物样与封存照常使用原结果，只有采纳才替换。试算记录绑定回波版本和对照正式识别ID：任一发生变化，续跑和采纳都会被拒绝并提示重新试算。采纳在航次根锁下完成，试算的`adopted_analysis_id`唯一，并发提交只有先成功的一份生效。worker按`trial:<run_id>`消费试算队列，把每个组合的逐点比对写入`school_trial_runs.metrics.comparison`；worker重启时把中断的组合记为失败，供续跑。
+
 ## 代码与事务
 
 | 路径 | 职责 |
 |---|---|
-| backend/src/models.py、schemas.py | Cruise/NavigationClosure、Transect/Echo、SchoolAnalysis/Review、Net/Calibration/BioSample、MissingInterval/Resurvey、SurveyRelease关系模型与输入契约 |
+| backend/src/models.py、schemas.py | Cruise/NavigationClosure、Transect/Echo、SchoolAnalysis/Review/Trial/TrialRun、Net/Calibration/BioSample、MissingInterval/Resurvey、SurveyRelease关系模型与输入契约 |
 | navigation_service.py | 航窗、潮汐冲突、同船占用与开返航 |
-| transect_service.py、school_service.py、algorithm.py、worker.py | 航段长度、探头范围、版本化回波、实际聚类和噪点复核 |
+| transect_service.py、school_service.py、algorithm.py、worker.py | 航段长度、探头范围、版本化回波、实际聚类和噪点复核、候选参数试算与采纳 |
 | biology_service.py、resurvey_service.py、release_service.py | 网具、生物样、补测地理接续与JSON冻结 |
 | common.py、auth.py、middlewares.py | 根锁、三角色JWT、动作审计、请求追踪和突发限流 |
 | frontend/src/pages | 六个原生ES modules业务页 |

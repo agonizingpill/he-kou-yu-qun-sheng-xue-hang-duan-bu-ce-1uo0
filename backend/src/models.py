@@ -81,6 +81,26 @@ class SchoolReview(Base):
     analysis_id:Mapped[int]=mapped_column(ForeignKey('school_analyses.id'),unique=True)
     noise_note:Mapped[str]=mapped_column(String(240))
     decision:Mapped[str]=mapped_column(String(120))
+class SchoolTrial(Base):
+    __tablename__='school_trials'
+    id:Mapped[int]=mapped_column(primary_key=True)
+    transect_id:Mapped[int]=mapped_column(ForeignKey('transects.id'))
+    data_version:Mapped[int]=mapped_column(Integer)
+    baseline_analysis_id:Mapped[int]=mapped_column(ForeignKey('school_analyses.id'))
+    status:Mapped[str]=mapped_column(String(20),default='queued')
+    adopted_analysis_id:Mapped[int|None]=mapped_column(ForeignKey('school_analyses.id'),nullable=True)
+    adopted_by:Mapped[str]=mapped_column(String(40),default='')
+class SchoolTrialRun(Base):
+    __tablename__='school_trial_runs'
+    __table_args__=(UniqueConstraint('trial_id','eps','min_samples'),)
+    id:Mapped[int]=mapped_column(primary_key=True)
+    trial_id:Mapped[int]=mapped_column(ForeignKey('school_trials.id'))
+    eps:Mapped[float]=mapped_column(Float)
+    min_samples:Mapped[int]=mapped_column(Integer)
+    status:Mapped[str]=mapped_column(String(20),default='queued')
+    assignments:Mapped[list]=mapped_column(JSON,default=list)
+    metrics:Mapped[dict]=mapped_column(JSON,default=dict)
+    error:Mapped[str]=mapped_column(String(200),default='')
 class Net(Base):
     __tablename__='nets'
     id:Mapped[int]=mapped_column(primary_key=True)
